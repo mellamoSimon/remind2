@@ -158,7 +158,7 @@ reportEmi <- function(gdx, output = NULL, regionSubsetList = NULL, t = c(seq(200
   }
   
   vm_FeedstocksCarbon <- readGDX(gdx, "vm_FeedstocksCarbon", field = "l", restore_zeros = T, react = "silent")[,t,]
-  
+  p37_FeedstockCarbonContent <- readGDX(gdx, "p37_FeedstockCarbonContent", field = "l")
   
   # secondary energy production
   vm_prodSe <- readGDX(gdx, "vm_prodSe", field = "l", restore_zeros = F)
@@ -234,6 +234,76 @@ reportEmi <- function(gdx, output = NULL, regionSubsetList = NULL, t = c(seq(200
 
 
   # Calculate Variables ----
+
+## 0.PLASTICS post-processing implementation-------------------------------------------------------------------------------
+
+#FIX ME: non of my sets is making sense, just writing pseudo-code for now!!!!!!!!!!!!!!!!!!!!!!!!!
+
+#Select end-of-life scenario: 
+# 1: full incineration, all plastic waste is incinerated
+# 2: 100% recycling (mechanical and chemical)
+# 3: 100% landfilling
+scenario_plastics <- 1
+
+  if (!is.null(vm_FeedstocksCarbon)) {
+    #share of carbon content of feedstocks that get transformed into plastics
+    #calculated based on Greyer et.al. (plastic flows), IEA energy flows, and stochiometry
+    share_plastics_feedstocks <- 0.63
+    
+    # get combinations of SE,FE,sector,emiMkt that exist in vm_FeedstocksCarbon
+    FE.feed.map <- se2fe %>% 
+      left_join(entyFe2Sector) %>% 
+      left_join(sector2emiMkt) %>% 
+      right_join(entyFe2sector2emiMkt_NonEn %>% 
+                   rename(all_enty1 = all_enty)) %>% 
+      select( -all_te) %>% 
+      mutate( name = paste(all_enty,all_enty1,all_emiMkt, sep = "."))
+    
+    # get flow of carbon from non-fossil sources (biogenic or synthetic) that is used as a feedstock
+    feedstock_bioSyn  <- mselect(vm_FeedstocksCarbon[,,FE.feed.map$name],
+                             all_enty = unique(entySeBio, entySeSyn))
+    # get fossil feedstocks
+    feedstock_fossil  <- mselect(vm_FeedstocksCarbon[,,FE.feed.map$name],
+                             all_enty = unique(entySeFos))
+    
+    # calculate plastics production by origin and total
+    plastics_bioSyn   <- share_plastics_feedstocks*feedstock_bioSyn #Units: GtC/yr
+    plastics_fossil   <- share_plastics_feedstocks*feedstock_fossil
+    plastics_total    <- plastics_bioSyn + plastics_fossil
+
+    #End-of-life scenarios
+    # TODO: ADD emi_plastics_EoL AND fe_plastics_EoL TO THE CORRESPONDING REPORTING EQUATIONS
+      if(scenario_plastics == 1) {
+        # calculate emissions credits to be added to total industry emissions
+        emi_plastics_EoL  <- plastics_fossil * sm_c_2_co2
+        # calculate energy savings to be included in industry's final energy demand
+        fe_plastics_EoL   <- collapseDim(vm_co2eq)*0
+        }
+      else if (scenario_plastics == 2) {
+        # calculate emissions credits to be added to total industry emissions
+        emi_plastics_EoL  <- collapseDim(vm_co2eq)*0
+        # calculate energy savings to be included in industry's final energy demand
+        # temporary assumption: savings are only made on feedstocks (i.e., process energy is similar for primary and secondary production)
+        # to be discounted from vm_demFENonEnergySector
+        fe_plastics_EoL   <- plastics_total / p37_FeedstockCarbonContent #FIX ME: non of my sets is making sense, just writing pseudo code for now
+        }
+      else if (scenario_plastics == 3) {
+        # calculate emissions credits to be added to total industry emissions
+        emi_plastics_EoL  <- collapseDim(vm_co2eq)*0
+        # calculate energy savings to be included in industry's final energy demand
+        fe_plastics_EoL   <- collapseDim(vm_co2eq)*0
+        }  
+  
+  } 
+  #dunno if I really need this:
+  else {
+    feedstock_bioSyn <- collapseDim(vm_co2eq)*0
+  
+  ## discount emissions from reduced energy demand for chemicals sector by recycling
+
+  }
+
+## end of plastics post-processing implementation--------------------------------------------------------
 
   ## 1. Total GHG Emissions ----
 
@@ -2357,5 +2427,7 @@ if (is.null(vm_demFENonEnergySector) && (module2realisation["industry", 2] == "f
 
 
   return(out)
+
+  
 
 }
