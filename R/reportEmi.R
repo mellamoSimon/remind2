@@ -235,14 +235,14 @@ reportEmi <- function(gdx, output = NULL, regionSubsetList = NULL, t = c(seq(200
 
   # Calculate Variables ----
 
-## 0.PLASTICS post-processing implementation-------------------------------------------------------------------------------
+## 0.PLASTICS post-processing implementation-------------------------------------------------------------------------------!!!
 
 #FIX ME: non of my sets is making sense, just writing pseudo-code for now!!!!!!!!!!!!!!!!!!!!!!!!!
 
 #Select end-of-life scenario: 
 # 1: full incineration, all plastic waste is incinerated
 # 2: 100% recycling (mechanical and chemical)
-# 3: 100% landfilling
+# 3: 100% landfilling (turtle killer)
 scenario_plastics <- 1
 
   if (!is.null(vm_FeedstocksCarbon)) {
@@ -296,8 +296,10 @@ scenario_plastics <- 1
   
   } 
   #dunno if I really need this:
+  #completar!
   else {
-    feedstock_bioSyn <- collapseDim(vm_co2eq)*0
+    feedstock_bioSyn  <- collapseDim(vm_co2eq)*0
+    emi_plastics_EoL  <- collapseDim(vm_co2eq)*0
   
   ## discount emissions from reduced energy demand for chemicals sector by recycling
 
@@ -314,10 +316,12 @@ scenario_plastics <- 1
                setNames(dimSums(vm_emiAllMkt[, , "co2"], dim = 3) * GtC_2_MtCO2 +
                           dimSums(vm_emiAllMkt[, , "ch4"], dim = 3) * sm_tgch4_2_pgc * GtC_2_MtCO2 +
                           dimSums(vm_emiAllMkt[, , "n2o"], dim = 3) * sm_tgn_2_pgc * GtC_2_MtCO2 +
-                          vm_emiFgas[, , "emiFgasTotal"],
+                          vm_emiFgas[, , "emiFgasTotal"] +
+                          emi_plastics_EoL,
                         "Emi|GHG (Mt CO2eq/yr)"),
                # total CO2 emissions
-               setNames(dimSums(vm_emiAllMkt[, , "co2"], dim = 3) * GtC_2_MtCO2,
+               setNames(dimSums(vm_emiAllMkt[, , "co2"], dim = 3) * GtC_2_MtCO2 +
+                          emi_plastics_EoL,
                         "Emi|GHG|+|CO2 (Mt CO2eq/yr)"),
                # total CH4 emissions in CO2eq (convert from MtCH4 to MtCO2eq)
                setNames(dimSums(vm_emiAllMkt[, , "ch4"], dim = 3) * sm_tgch4_2_pgc * GtC_2_MtCO2,
@@ -418,7 +422,7 @@ scenario_plastics <- 1
   } else {
    EmiFeCarrier <- pm_emifac.co2.fe * vm_demFeSector[, , emi.map.fe$name]
   }
-  
+
 
 
 
@@ -439,6 +443,8 @@ scenario_plastics <- 1
                          - dimSums(vm_emiIndCCS[, , emiInd37_fuel], dim = 3)*p_share_CCS
                          # substract synthetic and biogenic carbon contained in industrial feedstocks
                          - dimSums(Feedstock_CDR, dim=3)
+                         # add emissions from plastics incineration
+                         + emi_plastics_EoL
                         )*GtC_2_MtCO2,
                         "Emi|CO2|Energy|+|Demand (Mt CO2/yr)")
 
@@ -571,7 +577,9 @@ scenario_plastics <- 1
                setNames((dimSums(EmiFeCarrier[, , "indst"], dim = 3) 
                          - dimSums(vm_emiIndCCS[, , emiInd37_fuel]* p_share_CCS, dim = 3)
                          # substract synthetic and biogenic carbon contained in industrial feedstocks
-                         - dimSums(Feedstock_CDR, dim=3)) * GtC_2_MtCO2,
+                         - dimSums(Feedstock_CDR, dim=3)) * GtC_2_MtCO2
+                         # add emissions from plastic waste incineration
+                         + emi_plastics_EoL,
                           "Emi|CO2|Energy|Demand|+|Industry (Mt CO2/yr)"),
                # transport emissions: fe carrier emissions
                setNames(dimSums(EmiFeCarrier[, , "trans"], dim = 3) * GtC_2_MtCO2,
@@ -628,21 +636,27 @@ scenario_plastics <- 1
                  setNames((dimSums(mselect(EmiFeCarrier, all_enty1 = "fesos"), dim = 3)
                              - dimSums(mselect(vm_emiIndCCS_Sub, all_enty1 = "fesos")*p_share_CCS, dim = 3)
                            # substract synthetic and biogenic carbon contained in industrial feedstocks
-                             - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("sesobio","sesosyn"), all_enty1 = "fesos"), dim=3)) * GtC_2_MtCO2,
+                             - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("sesobio","sesosyn"), all_enty1 = "fesos"), dim=3)) * GtC_2_MtCO2
+                             # add emissions from plastics incineration from solid origin
+                             + dimSums(mselect(emi_plastics_EoL, all_enty,all_enty1 = "fesos"), dim = 3),
                             "Emi|CO2|Energy|Demand|++|Solids (Mt CO2/yr)"),
 
                  # liquids emissions: direct liquids emissions of all sectors - industry CCS of liquids
                  setNames((dimSums(mselect(EmiFeCarrier, all_enty1 = c("fehos", "fepet", "fedie")), dim = 3)
                              - dimSums(mselect(vm_emiIndCCS_Sub, all_enty1 = "fehos")*p_share_CCS, dim = 3)
                            # substract synthetic and biogenic carbon contained in industrial feedstocks
-                           - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("seliqbio","seliqsyn"), all_enty1 = "fehos"), dim=3)) * GtC_2_MtCO2,
+                           - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("seliqbio","seliqsyn"), all_enty1 = "fehos"), dim=3)) * GtC_2_MtCO2
+                           # add emissions from plastics incineration from liquids origin
+                           + dimSums(mselect(emi_plastics_EoL, all_enty,all_enty1 = "fehos"), dim = 3),
                             "Emi|CO2|Energy|Demand|++|Liquids (Mt CO2/yr)"),
 
                  # gases emissions: direct gases emissions of all sectors - industry CCS of gases
                  setNames((dimSums(mselect(EmiFeCarrier, all_enty1 = c("fegas", "fegat")), dim = 3)
                              - dimSums(mselect(vm_emiIndCCS_Sub, all_enty1 = "fegas")*p_share_CCS, dim = 3)
                            # substract synthetic and biogenic carbon contained in industrial feedstocks
-                           - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("segabio","segasyn"), all_enty1 = "fegas"), dim=3)) * GtC_2_MtCO2,
+                           - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("segabio","segasyn"), all_enty1 = "fegas"), dim=3)) * GtC_2_MtCO2
+                           # add emissions from plastics incineration from gas origin
+                           + dimSums(mselect(emi_plastics_EoL, all_enty,all_enty1 = "fegas"), dim = 3),
                             "Emi|CO2|Energy|Demand|++|Gases (Mt CO2/yr)")
       )
     } else {
@@ -676,21 +690,27 @@ scenario_plastics <- 1
                  setNames((dimSums(mselect(EmiFeCarrier, all_enty1 = "fesos", emi_sectors = "indst"), dim = 3)
                              - dimSums(mselect(vm_emiIndCCS_Sub, all_enty1 = "fesos")*p_share_CCS, dim = 3)
                            # substract synthetic and biogenic carbon contained in industrial feedstocks
-                             - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("sesobio","sesosyn"), all_enty1 = "fesos"), dim=3)) * GtC_2_MtCO2,
+                             - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("sesobio","sesosyn"), all_enty1 = "fesos"), dim=3)) * GtC_2_MtCO2
+                             # add emissions from plastics incineration from solid origin
+                             + dimSums(mselect(emi_plastics_EoL, all_enty,all_enty1 = "fesos"), dim = 3),
                             "Emi|CO2|Energy|Demand|Industry|+|Solids (Mt CO2/yr)"),
 
                  # industry liquids emissions: direct liquids emissions - industry CCS of liquids
                  setNames((dimSums(mselect(EmiFeCarrier, all_enty1 = c("fehos"), emi_sectors = "indst"), dim = 3)
                              - dimSums(mselect(vm_emiIndCCS_Sub, all_enty1 = "fehos")*p_share_CCS, dim = 3)
                            # substract synthetic and biogenic carbon contained in industrial feedstocks
-                             - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("seliqbio","seliqsyn"), all_enty1 = "fehos"), dim=3)) * GtC_2_MtCO2,
+                             - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("seliqbio","seliqsyn"), all_enty1 = "fehos"), dim=3)) * GtC_2_MtCO2
+                              # add emissions from plastics incineration from liquid origin
+                              + dimSums(mselect(emi_plastics_EoL, all_enty,all_enty1 = "fehos"), dim = 3),
                             "Emi|CO2|Energy|Demand|Industry|+|Liquids (Mt CO2/yr)"),
 
                  # industry gases emissions: direct gases emissions - industry CCS of gases
                  setNames((dimSums(mselect(EmiFeCarrier, all_enty1 = c("fegas"), emi_sectors = "indst"), dim = 3)
-                             - dimSums(mselect(vm_emiIndCCS_Sub, all_enty1 = "fegas")*p_share_CCS, dim = 3)
+                              - dimSums(mselect(vm_emiIndCCS_Sub, all_enty1 = "fegas")*p_share_CCS, dim = 3)
                            # substract synthetic and biogenic carbon contained in industrial feedstocks
-                             - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("segabio","segasyn"), all_enty1 = "fegas"), dim=3)) * GtC_2_MtCO2,
+                              - dimSums(mselect(vm_FeedstocksCarbon, all_enty=c("segabio","segasyn"), all_enty1 = "fegas"), dim=3)) * GtC_2_MtCO2
+                             # add emissions from plastics incineration from gas origin
+                              + dimSums(mselect(emi_plastics_EoL, all_enty,all_enty1 = "fegas"), dim = 3),
                             "Emi|CO2|Energy|Demand|Industry|+|Gases (Mt CO2/yr)")
     )
 
@@ -738,7 +758,7 @@ scenario_plastics <- 1
     )
 
 
-    # reporting of emissions for industry sectors (steel, cement, etc.)
+    # reporting of emissions for industry subsectors (steel, cement, etc.)
 
     out <- mbind(out,
                  setNames((dimSums(mselect(EmiIndSubSec, secInd37 = "steel"), dim = 3) - dimSums(mselect(vm_emiIndCCS_Sub, secInd37 = "steel")*p_share_CCS, dim = 3)) * GtC_2_MtCO2,
@@ -748,7 +768,9 @@ scenario_plastics <- 1
                  setNames((dimSums(mselect(EmiIndSubSec, secInd37 = "chemicals"), dim = 3) 
                            - dimSums(mselect(vm_emiIndCCS_Sub, secInd37 = "chemicals")*p_share_CCS, dim = 3)
                            # substract synthetic and biogenic carbon contained in industrial feedstocks
-                           - dimSums(Feedstock_CDR, dim=3)) * GtC_2_MtCO2,
+                           - dimSums(Feedstock_CDR, dim=3)) * GtC_2_MtCO2
+                           # add emissions from plastics incineration
+                           + dimSums(emi_plastics_EoL, dim = 3),
                            "Emi|CO2|Energy|Demand|Industry|++|Chemicals (Mt CO2/yr)"),
                  setNames((dimSums(mselect(EmiIndSubSec, secInd37 = "otherInd"), dim = 3) - dimSums(mselect(vm_emiIndCCS_Sub, secInd37 = "otherInd")*p_share_CCS, dim = 3)) * GtC_2_MtCO2,
                            "Emi|CO2|Energy|Demand|Industry|++|Other Industry (Mt CO2/yr)"))
