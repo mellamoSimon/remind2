@@ -135,12 +135,44 @@ reportFE <- function(gdx, regionSubsetList = NULL,
   # Preliminary Calculations ----
 
 
+  scenario_plastics <- 2
+
   # calculate FE non-energy use and FE without non-energy use
   if (!is.null(vm_demFENonEnergySector)) {
     vm_demFENonEnergySector <-  mselect(vm_demFENonEnergySector[demFemapping],
                                         all_enty1 = entyFe2sector2emiMkt_NonEn$all_enty,
                                         emi_sectors = entyFe2sector2emiMkt_NonEn$emi_sectors,
                                         all_emiMkt = entyFe2sector2emiMkt_NonEn$all_emiMkt)
+
+    if (scenario_plastics == 2) {
+      p37_FeedstockCarbonContent <- readGDX(gdx, "p37_FeedstockCarbonContent", field = "l", restore_zeros = F)[,t,] #[GtC/TWa]
+      vm_FeedstocksCarbon <- readGDX(gdx, "vm_FeedstocksCarbon", field = "l", restore_zeros = F)[,t,]
+      vm_FeedstocksCarbon <- collapseDim(vm_FeedstocksCarbon, dim = 1.2) # TODO this is really weird, we're getting all_regi.all_emiMkt
+      share_plastics_feedstocks <- 0.63
+
+      # sets of hydrocarbon SE carriersn
+      entySeFos <- readGDX(gdx, "entySeFos")
+      entySeBio <- readGDX(gdx, "entySeBio")
+      entySeSyn <- readGDX(gdx, "entySeSyn")
+
+      feedstock_bioSyn  <- mselect(vm_FeedstocksCarbon, all_enty = unique(c(entySeBio, entySeSyn)))
+      feedstock_fossil  <- mselect(vm_FeedstocksCarbon, all_enty = entySeFos)
+
+      # calculate plastics production by origin and total
+      plastics_bioSyn   <- share_plastics_feedstocks*feedstock_bioSyn #Units: GtC/yr
+      plastics_fossil   <- share_plastics_feedstocks*feedstock_fossil
+      plastics_all      <- mbind(plastics_bioSyn, plastics_fossil)
+
+      fe_plastics_EoL   <- plastics_all / p37_FeedstockCarbonContent[,,getItems(plastics_all, dim = 3.2)] #[TWa]
+      fe_plastics_EoL   <- fe_plastics_EoL*TWa_2_EJ #[EJ]
+
+      #FIX ME: not sure if the sets will make sense in the following part of S2 check tomorrow    !!!!!
+
+      # discount recycled feedstocks
+
+      #vm_demFENonEnergySector <- collapseNames(vm_demFENonEnergySector, collapsedim = "emi_sectors")
+      vm_demFENonEnergySector <- vm_demFENonEnergySector - fe_plastics_EoL #[EJ]
+    }
 
     # calculate FE without non-energy use
     vm_demFeSector_woNonEn <- vm_demFeSector
@@ -1458,7 +1490,7 @@ reportFE <- function(gdx, regionSubsetList = NULL,
       #            setNames(out[,,"FE|Industry|+|Solids (EJ/yr)"]
       #                     - out[,,"FE|Non-energy Use|Industry|+|Solids (EJ/yr)"],
       #                     "FE|w/o Non-energy Use|Industry|Solids (EJ/yr)") )
-      
+
 
     #FE per sector and per emission market (ETS and ESR)
     out <- mbind(out,
