@@ -135,7 +135,7 @@ reportFE <- function(gdx, regionSubsetList = NULL,
   # Preliminary Calculations ----
 
 
-  scenario_plastics <- 2
+  scenario_plastics <- 1
 
   # calculate FE non-energy use and FE without non-energy use
   if (!is.null(vm_demFENonEnergySector)) {
@@ -165,9 +165,7 @@ reportFE <- function(gdx, regionSubsetList = NULL,
 
       fe_plastics_EoL   <- plastics_all / p37_FeedstockCarbonContent[,,getItems(plastics_all, dim = 3.2)] #[TWa]
       fe_plastics_EoL   <- fe_plastics_EoL*TWa_2_EJ #[EJ]
-
-      #FIX ME: not sure if the sets will make sense in the following part of S2 check tomorrow    !!!!!
-
+      fe_plastics_EoL[,t <=2020,] <- 0
       # discount recycled feedstocks
 
       #vm_demFENonEnergySector <- collapseNames(vm_demFENonEnergySector, collapsedim = "emi_sectors")

@@ -236,7 +236,6 @@ reportEmi <- function(gdx, output = NULL, regionSubsetList = NULL, t = c(seq(200
   }
 
 
-
   # Calculate Variables ----
 
 ## 0.PLASTICS post-processing implementation-------------------------------------------------------------------------------!!!
@@ -245,7 +244,7 @@ reportEmi <- function(gdx, output = NULL, regionSubsetList = NULL, t = c(seq(200
 # 1: full incineration, all plastic waste is incinerated (S1)
 # 2: 100% recycling (mechanical and chemical) (S2)
 # 3: 100% landfilling (turtle killer) (S2)
-scenario_plastics <- 2
+scenario_plastics <- 1
 
 
   if (!is.null(vm_FeedstocksCarbon)) {
@@ -281,6 +280,9 @@ scenario_plastics <- 2
         emi_plastics_EoL  <- plastics_all  # GtC
         # no incineration before 2020
         emi_plastics_EoL[,t <=2020,] <- 0
+
+        # add to total emissions
+        vm_emiAllMkt[,,"co2.ETS"] <- vm_emiAllMkt[,,"co2.ETS"] + dimSums(emi_plastics_EoL, dim=3)
         }
       else if (scenario_plastics == 2) {
         # calculate emissions credits to be added to total industry emissions
@@ -290,7 +292,7 @@ scenario_plastics <- 2
         # to be discounted from vm_demFENonEnergySector
         #FIX: restrict for years after 2020 only !!!!!
         fe_plastics_EoL   <- plastics_all / p37_FeedstockCarbonContent[,,getItems(plastics_all, dim = 3.2)] #[TWa]
-
+        fe_plastics_EoL[,t <=2020,] <- 0
         # discount recycled feedstocks
 
         #vm_demFENonEnergySector <- collapseNames(vm_demFENonEnergySector, collapsedim = "emi_sectors")
@@ -327,12 +329,10 @@ scenario_plastics <- 2
                setNames(dimSums(vm_emiAllMkt[, , "co2"], dim = 3) * GtC_2_MtCO2 +
                           dimSums(vm_emiAllMkt[, , "ch4"], dim = 3) * sm_tgch4_2_pgc * GtC_2_MtCO2 +
                           dimSums(vm_emiAllMkt[, , "n2o"], dim = 3) * sm_tgn_2_pgc * GtC_2_MtCO2 +
-                          vm_emiFgas[, , "emiFgasTotal"] +
-                          dimSums(emi_plastics_EoL,dim=3) * GtC_2_MtCO2,
+                          vm_emiFgas[, , "emiFgasTotal"] ,
                         "Emi|GHG (Mt CO2eq/yr)"),
                # total CO2 emissions
-               setNames(dimSums(vm_emiAllMkt[, , "co2"], dim = 3) * GtC_2_MtCO2 +
-                          dimSums(emi_plastics_EoL,dim=3) * GtC_2_MtCO2,
+               setNames(dimSums(vm_emiAllMkt[, , "co2"], dim = 3) * GtC_2_MtCO2,
                         "Emi|GHG|+|CO2 (Mt CO2eq/yr)"),
                # total CH4 emissions in CO2eq (convert from MtCH4 to MtCO2eq)
                setNames(dimSums(vm_emiAllMkt[, , "ch4"], dim = 3) * sm_tgch4_2_pgc * GtC_2_MtCO2,
