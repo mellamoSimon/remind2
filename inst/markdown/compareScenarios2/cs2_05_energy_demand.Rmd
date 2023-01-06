@@ -232,7 +232,13 @@ items <- c(
   "FE|Non-energy Use|Industry|Gases|Fossil",
   "FE|Non-energy Use|Industry|Gases|Biomass",
   "FE|Non-energy Use|Industry|Gases|Hydrogen")
-showAreaAndBarPlots(data, items, tot)
+data2 <- data %>% 
+  filter(scenario %in% c("SSP2-Base-Plastics_S1",
+                         "SSP2-NDC-Plastics_S1",
+                         "SSP2-PkBudg1150-Plastics_S1",
+                         "SSP2-PkBudg500-Plastics_S1"))
+
+showAreaAndBarPlots(data2, items, tot)
 ```
 
 
